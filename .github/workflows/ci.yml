@@ -1,0 +1,137 @@
+name: Cross-Platform CI/CD
+
+# Trigger: Run on push or pull request to branches containing 'develop' or 'master'
+on:
+  push:
+    branches:
+      - '**develop**'
+      - '**master**'
+  pull_request:
+    branches:
+      - '**develop**'
+      - '**master**'
+
+jobs:
+  cross_build:
+    name: Build and Test on ${{ matrix.os }}
+    
+    # Strategy: Build on multiple operating systems
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            script: ./ci.sh
+            artifact_name: HelloWorld-Linux
+            test_executable: ./build/bin/HelloWorld
+          - os: windows-latest
+            script: .\ci.bat
+            artifact_name: HelloWorld-Windows
+            test_executable: .\build\bin\HelloWorld.exe
+          - os: macos-latest
+            script: ./ci.sh
+            artifact_name: HelloWorld-macOS
+            test_executable: ./build/bin/HelloWorld
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Set up CMake (cross-platform)
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.25.x'
+      
+      # Step 3: Install dependencies for Linux
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+      
+      # Step 4: Set executable permissions for shell script (Linux/macOS)
+      - name: Set executable permissions
+        if: runner.os != 'Windows'
+        run: chmod +x ci.sh
+      
+      # Step 5: Run build and test script
+      - name: Build and Test
+        run: ${{ matrix.script }}
+      
+      # Step 6: Verify executable was created
+      - name: Verify build artifacts
+        run: |
+          echo "Checking for executable..."
+          if [ -f "${{ matrix.test_executable }}" ] || [ -f "${{ matrix.test_executable }}" ]; then
+            echo "✅ Executable found"
+          else
+            echo "❌ Executable not found"
+            exit 1
+          fi
+        shell: bash
+      
+      # Step 7: Run the HelloWorld executable
+      - name: Run HelloWorld
+        run: ${{ matrix.test_executable }}
+      
+      # Step 8: Upload build artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            build/bin/HelloWorld*
+            build/RunTests*
+          retention-days: 7
+  
+  # Deploy job - runs after successful builds on all platforms
+  deploy:
+    name: Deploy Artifacts
+    needs: cross_build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (contains(github.ref, 'develop') || contains(github.ref, 'master'))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Download artifacts from all platforms
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: HelloWorld-Linux
+          path: ./artifacts/linux
+      
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: HelloWorld-Windows
+          path: ./artifacts/windows
+      
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: HelloWorld-macOS
+          path: ./artifacts/macos
+      
+      # List all artifacts
+      - name: List artifacts
+        run: |
+          echo "=== Deployment Artifacts ==="
+          ls -R ./artifacts/
+          echo "============================"
+      
+      # Deployment step (placeholder - customize based on your needs)
+      - name: Deploy
+        run: |
+          echo "🚀 Deploying artifacts..."
+          echo "✅ Deployment completed successfully!"
+          echo "Artifacts are ready for distribution from:"
+          echo "  - Linux: ./artifacts/linux/"
+          echo "  - Windows: ./artifacts/windows/"
+          echo "  - macOS: ./artifacts/macos/"
