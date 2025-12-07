@@ -22,7 +22,7 @@ REM Step 3: Configure the project with CMake
 echo ========================================
 echo Configuring project with CMake...
 echo ========================================
-cmake ..
+cmake -G "MinGW Makefiles" ..
 if %ERRORLEVEL% NEQ 0 (
     echo CMake configuration failed!
     cd ..
